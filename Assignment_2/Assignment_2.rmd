@@ -1,0 +1,183 @@
+---
+title: "Assignment_2"
+author: "Sudatta"
+date: "2024-02-22"
+output: html_document
+---
+
+
+
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+
+
+library(ISLR)
+library(caret)
+library(dplyr)
+library(class)
+setwd("D:\\FundML")
+
+
+BankData<-read.csv("UniversalBank.csv")
+summary(BankData)
+set.seed(234)
+##Data preprocessing
+
+
+##Converting categorical predictor to dummy variable
+set.seed(234)
+BankData$Education = as.factor(BankData$Education)
+dummy_model<-dummyVars(~Education, data=BankData)
+
+BankDataMod = data.frame(cbind(BankData,predict(dummy_model,BankData)))
+BankDataMod
+##normalize Data
+
+norm_model <- preProcess(BankDataMod, method = c("range"))
+BankData_normalized<-predict(norm_model, BankDataMod)
+summary(BankData_normalized)
+
+##Data Partitioning
+
+Train_index <-createDataPartition(BankData_normalized$Personal.Loan, p = 0.6, list = FALSE)
+Train_data <- BankData_normalized[Train_index, ]
+Validation_data <- BankData_normalized[-Train_index, ]
+
+
+### Performing a k-NN classification with all predictors except ID and ZIP code using k=1
+Train_predictors<- c("Age","Experience" ,"Income","Family","CCAvg", "Education.1", "Education.2", "Education.3", "Mortgage", "Securities.Account","CD.Account","Online","CreditCard")
+Validation_predictors<- c("Age","Experience" ,"Income","Family","CCAvg", "Education.1", "Education.2", "Education.3", "Mortgage", "Securities.Account","CD.Account","Online","CreditCard")
+
+## Creating response variable for training and validation data
+
+Train_labels<-as.factor(Train_data$Personal.Loan)
+Validation_labels<-as.factor(Validation_data$Personal.Loan)
+set.seed(45)
+
+
+
+# Predicting for New Customer
+new_customer <- data.frame(
+  Age = 40, Experience = 10, Income = 84, Family = 2, CCAvg = 2,
+  Education_1 = 0, Education_2 = 1, Education_3 = 0, Mortgage = 0,
+  Securities.Account = 0, CD.Account = 0, Online = 1, CreditCard = 1
+)
+
+predictedClass <- knn(train = Train_data[, c("Age","Experience" ,"Income","Family","CCAvg", "Education.1", "Education.2", "Education.3", "Mortgage", "Securities.Account","CD.Account","Online","CreditCard")],
+                 test = new_customer,
+                 cl = Train_labels,
+                 k = 1)
+
+# Display the predicted class
+print(predictedClass)
+
+# Hyperparameter tuning to find the best k value
+set.seed(123)
+TuningGrid <- expand.grid(k = seq(1, 20, by = 1))
+OptimizedModel <- train(Train_data[, c("Age","Experience" ,"Income","Family","CCAvg", "Education.1", "Education.2", "Education.3", "Mortgage", "Securities.Account","CD.Account","Online","CreditCard")],
+               Train_labels,
+               method = "knn",
+               tuneGrid = TuningGrid,
+               trControl = trainControl(method = "cv"))
+print(OptimizedModel)
+
+
+# Choosing a value of k that balances between overfitting and ignoring the predictor information
+finding_k <- OptimizedModel$bestTune$k
+print(paste("Best k:", finding_k))
+
+# Perform k-NN classification with the best k on the validation data
+PredictedValidation <- knn(train = Train_data[, c("Age","Experience" ,"Income","Family","CCAvg", "Education.1", "Education.2", "Education.3", "Mortgage", "Securities.Account","CD.Account","Online","CreditCard")],
+                            test = Validation_data[, c("Age","Experience" ,"Income","Family","CCAvg", "Education.1", "Education.2", "Education.3", "Mortgage", "Securities.Account","CD.Account","Online","CreditCard")],
+                            cl = Train_labels,
+                            k = finding_k)
+
+# Confusion matrix for the validation data
+confusionMatrix <- table(PredictedValidation, Validation_labels)
+print(confusionMatrix)
+
+############# Predicting for new customer with tuned parameter
+
+new_customer <- data.frame(
+  Age = 40, Experience = 10, Income = 84, Family = 2, CCAvg = 2,
+  Education_1 = 0, Education_2 = 1, Education_3 = 0, Mortgage = 0,
+  Securities.Account = 0, CD.Account = 0, Online = 1, CreditCard = 1
+)
+
+predictedClass <- knn(train = Train_data[, c("Age","Experience" ,"Income","Family","CCAvg", "Education.1", "Education.2", "Education.3", "Mortgage", "Securities.Account","CD.Account","Online","CreditCard")],
+                      test = new_customer,
+                      cl = Train_labels,
+                      k = finding_k )
+ 
+# Display the predicted class
+print(predictedClass)
+
+###############################
+Train_index <-createDataPartition(BankData_normalized$Personal.Loan, p = 0.5, list = FALSE)
+Train_data <- BankData_normalized[Train_index, ]
+temp <- BankData_normalized[-Train_index, ]
+Validation_index <- createDataPartition(temp$Personal.Loan, p = 0.6, list = FALSE)
+Validation_data <- temp[Validation_index, ]
+Test_data <- temp[-Validation_index, ]
+
+
+
+Train_labels<-as.factor(Train_data$Personal.Loan)
+Validation_labels<-as.factor(Validation_data$Personal.Loan)
+Test_labels<-as.factor(Test_data$Personal.Loan)
+
+# Perform k-NN classification with the best k on the New Training Data
+PredictedNewTrain <- knn(train = Train_data[, c("Age","Experience" ,"Income","Family","CCAvg", "Education.1", "Education.2", "Education.3", "Mortgage", "Securities.Account","CD.Account","Online","CreditCard")],
+                           test = Train_data[, c("Age","Experience" ,"Income","Family","CCAvg", "Education.1", "Education.2", "Education.3", "Mortgage", "Securities.Account","CD.Account","Online","CreditCard")],
+                           cl = Train_labels,
+                           k = finding_k)
+
+# Confusion matrix for the New Training Data
+confusionMatrix_NewTrain <- table(PredictedNewTrain, Train_labels)
+
+
+# Perform k-NN classification with the best k on the New Validation Data
+PredictedValidation <- knn(train = Train_data[, c("Age","Experience" ,"Income","Family","CCAvg", "Education.1", "Education.2", "Education.3", "Mortgage", "Securities.Account","CD.Account","Online","CreditCard")],
+                           test = Validation_data[, c("Age","Experience" ,"Income","Family","CCAvg", "Education.1", "Education.2", "Education.3", "Mortgage", "Securities.Account","CD.Account","Online","CreditCard")],
+                           cl = Train_labels,
+                           k = finding_k)
+
+# Confusion matrix for the validation data
+confusionMatrix_NewValidation <- table(PredictedValidation, Validation_labels)
+
+# Perform k-NN classification with the best k on the New Validation Data
+PredictedTest <- knn(train = Train_data[, c("Age","Experience" ,"Income","Family","CCAvg", "Education.1", "Education.2", "Education.3", "Mortgage", "Securities.Account","CD.Account","Online","CreditCard")],
+                           test = Test_data[, c("Age","Experience" ,"Income","Family","CCAvg", "Education.1", "Education.2", "Education.3", "Mortgage", "Securities.Account","CD.Account","Online","CreditCard")],
+                           cl = Train_labels,
+                           k = finding_k)
+
+# Confusion matrix for the validation data
+confusionMatrix_Test <- table(PredictedTest, Test_labels)
+
+# Comparing the Confusion Matrix
+print(confusionMatrix_NewTrain)
+print(confusionMatrix_NewValidation)
+print(confusionMatrix_Test)
+
+# On comparing the confusion matrices, we find that the training set predictions are the best, compared to test and validation sets.
+# That is not surprising since the model is trained on training data and thus is overfitting when predicting on the training data.
+# Additionally, differences in the sample size of the sets may also affect the performance metrics.
+
+
+
+
+
+
+
+
+
+
+
+
+```
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
