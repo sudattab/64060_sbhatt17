@@ -1,0 +1,94 @@
+---
+title: "Assignment_3"
+author: "Sudatta"
+date: "2024-03-05"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r}
+library(caret)
+library(reshape2)
+library(e1071)
+library(ISLR)
+library(gmodels)
+setwd("D:\\FundML")
+BankData<-read.csv("UniversalBank.csv")
+BankDataOnline<- as.factor(BankData$Online)
+BankDataCC<- as.factor(BankData$CreditCard)
+BankDataLoan<- as.factor(BankData$Personal.Loan)
+
+set.seed(456)
+Train_index<-createDataPartition(BankData$Personal.Loan,p=.6,list=FALSE)
+Train_data<-BankData[Train_index, ]
+Validation_data<-BankData[-Train_index,]
+
+### A ans
+meltbankdata <-melt(Train_data,id=c("CreditCard","Online"),variable= "Personal.Loan")
+castbankdata <-dcast(meltbankdata,CreditCard+Online~Personal.Loan)
+castbankdata[,c(1:2,12)]
+
+### B ans
+###probability 556/3000=0.1853=18.53%
+
+### C ans
+
+meltbankdata1<-melt(Train_data,id=c("Personal.Loan"),variable="Online")
+castbankdata1<-dcast(meltbankdata1,Personal.Loan~Online)
+castbankdata1[,c(1,13)]
+meltbankdata2<-melt(Train_data,id=c("Personal.Loan"), variable="CreditCard")
+castbankdata2<-dcast(meltbankdata2,Personal.Loan~CreditCard)
+castbankdata2[,c(1,14)]
+
+### D ans
+Probabilitytable1<-table(Train_data[,c("CreditCard","Personal.Loan")])
+Probabilitytable1
+###probability= 89/200+89=0.307=30.7% when CC=1,LOAN=1
+Probabilitytable2<-table(Train_data[,c("Online","Personal.Loan")])
+Probabilitytable2
+###probability=177/112+177=0.6124=61.24% WHEN ONLINE=1,LOAN=1
+Probabilitytable3<-table(Train_data[,c("Personal.Loan")])
+Probabilitytable3
+###probability=289/3000=0.0963=9.633% WHEN LOAN=1                                
+Probabilitytable4<-table(Train_data[,c("CreditCard","Personal.Loan")])
+Probabilitytable4
+### probability= 794/1917+794=0.2928=29.28% WHEN CC=1, LOAN=0
+Probabilitytable5<-table(Train_data[,c("Online","Personal.Loan")])
+Probabilitytable5
+###probability=1665/1046+1665=0.6141=61.41% WHEN ONLINE=1,LOAN=0
+Probabilitytable6<-table(Train_data[,c("Personal.Loan")])
+Probabilitytable6
+###Probability= 2711/3000=0.9036=90.36% WHEN LOAN=0
+
+### E ans
+###LoanYesProbability =LoanYes/LoanYes+LoanNo
+##P(LoanYes)=Probability 1*2*3
+##P(LoanNo)Probability 4*5*6
+
+###Probability((Personal.Loan = 1 |CreditCard=1,Online=1)= 
+### 0.307*0.6124*0.0963/0.2928*0.6141*0.9036+0.307*0.6124*0.0963=0.1011=10.11%
+### F ans  E will be more accurate
+### G ans
+Train_data<-as.data.frame(Train_data)
+naiveTrainData<-Train_data[,c(10,13:14)]
+naiveBayesModel<-naiveBayes(Personal.Loan~ CreditCard+Online, data=naiveTrainData)
+naiveBayesModel
+
+###probabibility= .462*.488*.096/.462*.488*.096+.45*.48*.903= 0.0994=9.94% which is very much close to the probability we got in E ans.
+
+
+
+
+
+
+
+
+
+
+```
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
