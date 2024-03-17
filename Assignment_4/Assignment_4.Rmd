@@ -1,0 +1,156 @@
+---
+title: "Assignment_4FML"
+author: "Sudatta"
+date: "2024-03-11"
+output: html_document
+---
+
+```{r}
+
+### SUMMARY:
+#  Here we are analysing a data on Pharmaceutical industry collected from 21 different firms to better understand the structure of the industry and exploring different aspects.We are using K-means logarithm to explore the data by considering the first 9 numerical variables.They are Market Capitalization ("Market_Cap"),Beta("Beta"),Price/earnings ratio("PE_Ratio"),Return on equity ("ROE"),return on assets("ROA"),Asset turnover ("Asset_Turnover"),Leverage("Leverage"), Estimated revenue growth("Rev_Growth"), and Net Profit margin("Net_ Profit_Margin).
+### Analysis:
+# a) These variables are selected because they play a great role in determining a firm's financial health, market position, and overall performance. K-means algorithm is chosen here for its effectiveness on giving preliminary analysis and capability of producing distinct clusters.The "WSS"and"SILHOUETTE" methods have been used to determine the optimal no of clusters.Data have been normalized using "RANGE"method as we see there are different scales(such as net profit,PE ratio)in the overall data.We have also checked for any missing values in the data.I have also tried a different approach with some weighted variables such as market capital, leverage , net profit and market revenue as these variables shows high impact for any business organisation. 
+# b) We have done both correlation and ggplot to see to interpret the clusters with the numerical variables.From ggplot we can easily compare "cluster1" and "cluster2" that shows "cluster1" is in very good position according to most of the variables such as high market capital,Asset turnover,Return of asset,return of equity and netprofit margin compared to "cluster2". "cluster2" is very low in market capital and high in leverage that is not profitable for any firm though it has a high revenue growth than "cluster1".So we can conclude that "cluster1" can be named as "High-performance Firm" and "cluster2" can be named as "Average-Performance firm".
+# c)There is definitely a pattern in the clusters with respect to the numerical variables to the variables we have not used in the clusters."Cluster2" is mostly US based and  has most moderate buy and few strong buy and hold. "cluster1" has US based firm with other locations also and has many on hold and no strong buy.Cluster 2 seems to have a broader range of recommendations with four different categories, which might suggest a different risk profile or market perception compared to Cluster 1 as it shows a strong by category and mostly US based.
+# d) If we see on this perspective we can take "cluster1" as "Global-Good performance Cluster" and "cluster2" can be called as "US-based various recommendation cluster".
+
+library(caret)
+library(factoextra)
+library(tidyverse)
+library(flexclust)
+library(corrplot)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+setwd("D:\\FundML")
+set.seed(123)
+Pharmadata<-read.csv("Pharmaceuticals.csv")
+summary(Pharmadata)
+NewPharmadata<-Pharmadata[,3:11]
+
+### Normalization by "range" method
+Norm_NewPharmadata<-preProcess(NewPharmadata,method="range")
+NormalizedNewpharmadata<-predict(Norm_NewPharmadata,NewPharmadata) 
+head(NormalizedNewpharmadata)  
+dim(NormalizedNewpharmadata)
+
+###Check for missing value
+missingvalue<-any(is.na(NormalizedNewpharmadata))
+## checking Corerelations between different variables
+corrplot(cor(NormalizedNewpharmadata), type = 'upper', method = 'number', tl.cex = 0.9)
+ggplot(NormalizedNewpharmadata,aes(x= Beta,y =ROA))+
+       geom_point()+
+        geom_smooth(method="lm",se=FALSE)
+ggplot(NormalizedNewpharmadata, aes(x = Market_Cap, y = ROA)) +
+  geom_point() +
+  geom_smooth(method = 'lm', se = FALSE) +
+  theme_bw()
+
+### Determining EUCLIDIAN DISTANCE
+
+Distance<-get_dist(NormalizedNewpharmadata)
+fviz_dist(Distance)   ###Distance between observations
+## checking diffrent k value
+k_values<-2:7
+kmeansdiffvalueresults<-list()
+set.seed(578)
+for (k in k_values) {
+result <- kmeans(NormalizedNewpharmadata, centers = k, nstart = 25)
+   kmeansdiffvalueresults[[paste("k", k, sep = "")]] 
+}
+result
+k2<-kmeans(NormalizedNewpharmadata,centers=2,nstart=25)## 2 clusters size 11 and 10
+k2$size
+fviz_cluster(k2,NormalizedNewpharmadata)
+k3<-kmeans(NormalizedNewpharmadata,centers=3,nstart=25) ## taking k=3 getting  clusters of size 4,6,11
+k3$size
+fviz_cluster(k3,NormalizedNewpharmadata) 
+k4<-kmeans(NormalizedNewpharmadata,centers=4,nstart=25) ## taking k=4 getting 4 clusters of size 7,6,4,4
+k4$size
+fviz_cluster(k4,NormalizedNewpharmadata)
+k5<- kmeans(NormalizedNewpharmadata, centers =5,nstart=25) ## taking k=5 getting 5 clusters of size 4,3,4,7,3
+k5$centers
+k5$size
+fviz_cluster(k5,NormalizedNewpharmadata)
+k6<- kmeans(NormalizedNewpharmadata, centers =6,nstart=25)## taking k=5 getting 5 clusters of size 4,3,4,7,3
+k6$size
+fviz_cluster(k6,NormalizedNewpharmadata)
+### To evaluate optimal or best k value:
+fviz_nbclust(NormalizedNewpharmadata,kmeans,method="wss")### by "wss" method 
+fviz_nbclust(NormalizedNewpharmadata,kmeans,method="silhouette")### by "silhouette" method 
+### Here we are getting different K VALUE WSS=6 AND SILHOUETTE=2.As using k=2 giving compact cluster and also "Silhouette"method showing value 2,we will follow this method and our final cluster value will be 2.
+
+### Binding clusters into main normalized data and comparing with 9 variables to determine clusters names
+NormalizedNewpharmadata_Mod = data.frame(cbind(NormalizedNewpharmadata, k2$cluster))
+SummData = NormalizedNewpharmadata_Mod %>%
+ group_by(k2.cluster) %>%
+summarise(meanPE_Ratio = mean(PE_Ratio),
+            meanROA = mean(ROA),
+          meanMarket_cap=mean(Market_Cap),meanBeta=mean(Beta),meanLeverage=mean(Leverage),meanAsset_Turnover=mean
+          (Asset_Turnover),meanNet_Profit_Mergin=mean(Net_Profit_Margin),meanRev_Growth=mean(Rev_Growth),meanROE=
+           mean (ROE ))
+
+fullPharmaDatawithCluster = data.frame(cbind(Pharmadata,k2$cluster))
+clusters <- split(fullPharmaDatawithCluster, fullPharmaDatawithCluster$k2.cluster)
+View(clusters[["1"]])
+ View(clusters[["2"]])
+ Cluster1<-as.data.frame(clusters[["1"]])
+ Cluster2<-as.data.frame(clusters[["2"]])
+  ###ggplot to compare "cluster1" and "cluster2"
+ clusteredmodData <- SummData %>%
+  pivot_longer(cols =c( "meanPE_Ratio","meanROA","meanBeta","meanMarket_cap","meanLeverage","meanAsset_Turnover",
+  "meanNet_Profit_Mergin","meanRev_Growth","meanROE"), names_to = "Variable", values_to = "Value")
+
+ ggplot(clusteredmodData, aes(x ="variable", y = Value, fill = as.factor(k2.cluster))) +
+  geom_col(position = position_dodge()) +
+  facet_wrap(~ Variable, scales = "free_y") +
+  theme_bw() +
+  labs(fill = "Cluster")
+### Comparison of "cluster1" and "cluster2" with "Median_Recommendation" and "Location". I have not compared with the last variable "Exchange" as all of them are same except one.
+ ggplot(data=Cluster1,aes(x=k2.cluster,y=Median_Recommendation,Location))+
+   geom_col(fill = "blue")+labs(x="cluster1",y="Median_Recomendation",title="Comaparison of cluster1 with Median_Recommendation")+
+   coord_flip()+
+   theme_bw()
+    ggplot(data=Cluster1,aes(x=k2.cluster,y=Location))+labs(x="cluster1",y="Location",title="Comaparison of cluster1 with Location")+
+   geom_col(fill = "blue")+
+   coord_flip()+
+   theme_bw()
+    
+ggplot(data=Cluster2,aes(x=k2.cluster,y=Median_Recommendation))+labs(x="cluster2",y="Median_Recommendation",title="Comaparison of cluster with Median_Recommendation")+
+   geom_col(fill = "blue")+
+   coord_flip()+
+   theme_bw()
+ ggplot(data=Cluster2,aes(x=k2.cluster,y=Location))+labs(x="cluster2",y="Location",title="Comaparison of cluster with Location")+
+   geom_col(fill = "blue")+
+   coord_flip()+
+   theme_bw()  
+ 
+
+ ### DIFFERENT APPROACH WITH WEIGHTED VARIABLE such as MARKET CAP,LEVERAGE, REVENUE, NET PROFIT.
+RevisedPharmadata<-Pharmadata[,c(3,9:11)]
+Norm_RevisedPharmadata<-preProcess(RevisedPharmadata,method="range")
+NormalizedRevisedpharmadata<-predict(Norm_RevisedPharmadata,NewPharmadata)
+
+missingvalue<-any(is.na(NormalizedRevisedpharmadata))
+Distance1<-get_dist(NormalizedRevisedpharmadata)
+fviz_dist(Distance)   ###Distance between observations
+k4_1<-kmeans(NormalizedRevisedpharmadata,centers=4,nstart=25) ## taking k=4 getting 4 clusters of size 10,4,2,5
+k4_1$size
+fviz_cluster(k4_1,NormalizedRevisedpharmadata)
+k3_1<-kmeans(NormalizedRevisedpharmadata,centers=3,nstart=25)## clusters of size 5,2,14
+k3_1$size
+k3_1$centers
+fviz_cluster(k3_1,NormalizedRevisedpharmadata)
+## Determining best k value. Both process showing the best kvalue is 3.
+fviz_nbclust(NormalizedRevisedpharmadata,kmeans,method="wss")### by "wss" method 
+fviz_nbclust(NormalizedRevisedpharmadata,kmeans,method="silhouette")### by "silhouette" method 
+## After this We have to follow same process as above to get good clusters that will help in analysing the farms and to take better decision. 
+
+
+
+```
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
