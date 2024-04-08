@@ -1,0 +1,214 @@
+---
+title: "Assignment_5"
+author: "Sudatta"
+date: "2024-03-27"
+output: html_document
+---
+
+```
+```
+```{r}
+library(dplyr)
+library(caret)
+library(stats)
+library(cluster)
+library(flexclust)
+library(factoextra)
+library(ggplot2)
+library(tidyr)
+library(mclust)
+
+setwd("D:\\FundML")
+## Reading Data
+Cereals<-read.csv("Cereals.csv")
+set.seed(456)
+str(Cereals)
+dim(Cereals)
+is.na(Cereals)
+CerealswithoutMV<-na.omit(Cereals) # Remove total 4 missing values from 3 rows
+head(CerealswithoutMV)
+## Normalization by "range" method
+preProcess_result <- preProcess(CerealswithoutMV, method = "range")
+scaled_data <- predict(preProcess_result, CerealswithoutMV)
+# checking properly normalized or not
+summary(scaled_data)
+###Cereals_norm<-scale(Cereals[4:16])     which one should do? range or this one?
+#head(Cereals_norm) 
+## Ans 1 First part
+Distancematrix <- dist(scaled_data, method = "euclidean")  #Marking dissimilarities by distancematrix by "Euclidean" method
+
+# Hierarchical clustering using Complete linkage
+HCcomplete <- hclust(Distancematrix, method = "complete" ) #complete method
+HCward<-hclust(Distancematrix,method="ward") #ward method
+plot(HCcomplete, labels=scaled_data$name,cex=.5,hang=-1)
+# Plot the obtained dendogram
+fviz_nbclust((scaled_data[,4:16]),kmeans,method="wss")# Applying only numerical columns,giving 9 best clusters value
+
+fviz_nbclust((scaled_data[,4:16]),kmeans,method="silhouette")# Applying only numerical columns,giving 10 best clusters value
+fviz_dend(HCcomplete,k=10,main="Dendogram")
+
+## Ans 1 second Part
+# Compute with agnes and with different linkage methods(single,complete,average and ward)
+hc_single <- agnes(scaled_data, method = "single")
+hc_complete <- agnes(scaled_data, method = "complete")
+hc_average <- agnes(scaled_data, method = "average")
+hc_ward<-agnes(scaled_data,method="ward")
+print(hc_single$ac)
+print(hc_complete$ac)
+print(hc_average$ac)
+print(hc_ward$ac)  ## ward method gives best coefficient value 0.99
+
+pltree(hc_ward, cex = 0.6, hang = -1, main = "Dendrogram of agnes")  ##not showing a good result though ward method coefficient was highest.
+pltree(hc_complete,cex=.6,hang=-1,main = "Dendrogram of agnes")  ## much better 
+pltree(hc_average, cex = 0.6, hang = -1, main = "Dendrogram of agnes") ## Average method showing good results too.However, if we compare 3 distance method it is clear that "complete" method has highest coefficient and also showing good results when plotting. so going ahead with "complete"method.
+fviz_dend(hc_complete,k=10,rect=FALSE)
+
+asdf.ag<-agnes(scaled_data)
+treeclusters<-cutree(as.hclust(asdf.ag),k=10)
+
+# compute divisive hierarchical clustering
+hc_diana <- diana(scaled_data)
+# Divise coefficient; amount of clustering structure found
+hc_diana$dc
+## 0.9699204
+# plot dendrogram
+pltree(hc_diana, cex = 0.6, hang = -1, main = "Dendrogram of diana")
+rect.hclust(hc_diana,k=5,border=1:5)
+fviz_nbclust((scaled_data[,4:16]),kmeans,method="silhouette")# Applying only numerical columns,giving 10 best clusters value
+fviz_nbclust((scaled_data[,4:16]),kmeans,method="wss")# Applying only numerical columns,giving 9 best clusters value
+## Ans No 2: Choosing "Silhouette" process over "WSS" as it shows definite cluster value by the dotted line.So I would choose 10 clusters.
+### Ans No 3: 
+
+set.seed(455)
+Partition <- sample(2, nrow(scaled_data), replace = TRUE, prob = c(0.5, 0.5))
+PartitionA <- scaled_data[Partition == 1, ]
+PartitionB <- scaled_data[Partition == 2, ]
+hcPartitionA <- hclust(dist(PartitionA[, 4:16]), method = "complete")
+
+#for k=10
+k <- 10  # 
+clustersPartitionA <- cutree(hcPartitionA, k=10)
+# Calculate the centroids of each cluster from Partition A
+centroids_A <- aggregate(PartitionA[, 4:16], by = list(cluster = clustersPartitionA), mean)
+
+# Function to find the nearest centroid for each row in Partition B
+Givenhccluster <- function(row, centroids) {
+  mindist <- min(colSums((t(centroids) - row)^2))
+  return(which(colSums((t(centroids) - row)^2) == mindist))
+}
+
+# Assign clusters to Partition B based on nearest centroids from Partition A
+clustersPartitionB <- apply(PartitionB[, 4:16], 1, Givenhccluster, centroids_A[-1])
+## Testing Partition B as independent Cluster
+DistanceB <- dist(PartitionB[, 4:16])  # Compute the distance matrix for Partition B
+hcPartitionB <- hclust(DistanceB, method = "complete")  # Perform hierarchical clustering
+
+# Determine the number of clusters (k)
+# This should ideally be consistent with the number used for Partition A, or determined through analysis specific to B
+kPartitionB <- 10 # Example value, adjust based on your analysis
+plot(hcPartitionB,cex=.6,hang=-1)
+fviz_dend(hcPartitionB,cex=.6,hang=-1,k=10)
+# Cut the hierarchical clustering tree to get independent cluster assignments for Partition B
+independentClusterB <- cutree(hcPartitionB, k=10)
+ independentClusterB<cutree(hcPartitionB,h=0.6) # As the result is not very clear I am using ARI calculation( Adjusted Rand Index)
+ # Using ARI calculation to determine stability between PartitionA and PartitionB
+ARIvalue <- mclust::adjustedRandIndex(clustersPartitionB, independentClusterB)
+ARIvalue
+##Adjusted Rand Index(ARI) varies from -1 to 1. so here ARI value 0.45 is not very good result for stability.
+
+##  Ans  4 
+## Data exploration by ggplot,histogram, barchart.Tried to get an idea of the variables associated with different cereals and how I can try to differentiate between healthy and unhealthy cereals.These plots can definitely give a general idea of the ingredients by visualisation.
+ 
+ggplot(scaled_data,aes(x=name,y=sugars))+geom_bar(stat="identity")+theme(axis.text.x = element_text(angle = 90, hjust = 1))  # Golden Crisp and Smacks has highest sugar content.
+ 
+ggplot(scaled_data, aes(x = name, y = calories)) + 
+  geom_bar(stat = "identity")+theme(axis.text.x = element_text(angle = 90, hjust = 1))  # Muesli Crispy Blend Has highest calorie content.
+
+ggplot(scaled_data, aes(x = name, y = fiber)) + 
+  geom_bar(stat = "identity")+theme(axis.text.x = element_text(angle = 90, hjust = 1))  # All Bran with Extra Fiber has highest fiber content.
+ggplot(scaled_data, aes(x = name, y = carbo)) + 
+  geom_bar(stat = "identity")+theme(axis.text.x = element_text(angle = 90, hjust = 1))  # Rice chex Is highest in carbohydrate & 100% Bran is the lowest.
+
+ggplot(scaled_data, aes(x = name, y = vitamins)) + 
+  geom_bar(stat = "identity")+theme(axis.text.x = element_text(angle = 90, hjust = 1))  # Very few only 6 cereals are high in vitamins.
+
+ggplot(scaled_data, aes(x = name, y = fat)) + 
+  geom_bar(stat = "identity")+theme(axis.text.x = element_text(angle = 90, hjust = 1))  # 100% bran has highest fat content.
+
+ggplot(scaled_data, aes(x = name, y = sodium)) + 
+  geom_bar(stat = "identity")+theme(axis.text.x = element_text(angle = 90, hjust = 1))  # Product_19 has highest sodium value & Post_Nat raisin bran has second highest. 
+
+### Ans No 4: making a healthy cereal dataframe with name,sugars,fiber,carbo,protein,fat,calories,sodium
+healthy_cereals_df <- scaled_data %>%
+  select(name, sugars, fiber,carbo, protein, fat,calories,sodium) 
+
+distance2 <- dist(healthy_cereals_df)  # Compute the distance matrix
+hchealthydf <- hclust(distance2)  # Apply hierarchical clustering
+
+# Plot the dendrogram
+plot(hchealthydf, labels = healthy_cereals_df$name, main = "Hierarchical Clustering of healthy cereals",cex=.5,hang=-10)
+healthyclusterdf<-cbind(healthy_cereals_df,treeclusters)
+Dist_healthy<-dist(healthyclusterdf,method="euclidean")
+Complete_dist<-hclust(Dist_healthy,method="complete") # Using complete as most common method.
+plot(Complete_dist,cex=.6,hang=-1,labels=healthyclusterdf$name)
+
+SummData = healthyclusterdf %>%
+ group_by(treeclusters) %>%
+summarise(meansugars = mean(sugars),
+            meanfiber= mean(fiber),meancarbo=mean(carbo),
+          meanprotein=mean(protein),meanfat=mean(fat),meancalories=mean(calories),meansodium=mean
+          (sodium))
+
+healthydataframe<-SummData %>% 
+  pivot_longer(cols =c("meansugars","meanfiber","meancarbo","meanprotein","meanfat","meancalories","meansodium"),names_to="variable", values_to="value")
+ggplot(healthydataframe, aes(x =variable, y = value, fill = as.factor(treeclusters))) +
+  geom_col(width=7,position=position_dodge())+theme_bw()+labs(title="comparing clusters to choose healthy cluster")+
+  facet_wrap(~ variable, scales = "free_y") +
+  labs(fill ="cluster")
+
+## I would choose the red cluster as the best cluster containing healthy cereals.Red cluster is  the highest in protein and fiber.It is average amount of calories It also has less sodium and less sugar that is very unhealthy. So overall this cluster can be considered as the best cluster in comparison with the other clusters.    I think The data should be normalised. otherwise it is not possible to get clusters among different scale values.Different variables have different units.So normalization helps in interpretation of results.
+
+# searching all cereal names present in the cluster1 or the healthy cluster
+
+MaindatawithCluster = data.frame(cbind(CerealswithoutMV,treeclusters))
+clusters <- split(MaindatawithCluster, MaindatawithCluster$treeclusters)
+View(clusters[["1"]])
+print(clusters[["1"]][, 1])
+## Here are the names of the cereals that are present in the healthy "cluster1": 1] "100%_Bran"        2) "100%_Natural_Bran"  3) "All-Bran" [4] "All-Bran_with_Extra_Fiber                     5)"Apple_Cinnamon_Cheerios"       6) "Apple_Jacks"    7) "Basic_4"            
+##Trying to cross_check the contents & rating of those cereals that forming the healthy cluster.
+View(data.frame(CerealswithoutMV[1,c(1,4:8,9,10,12,16)]))                  
+View(data.frame(CerealswithoutMV[2,c(1,4:8,9,10,12,16)]))
+View(data.frame(CerealswithoutMV[3,c(1,4:8,9,10,12,16)]))
+View(data.frame(CerealswithoutMV[4,c(1,4:8,9,10,12,16)]))
+View(data.frame(CerealswithoutMV[6,c(1,4:8,9,10,12,16)]))
+View(data.frame(CerealswithoutMV[7,c(1,4:8,9,10,12,16)]))
+View(data.frame(CerealswithoutMV[8,c(1,4:8,9,10,12,16)]))
+## Interpreting Selected Cereals are really healthy or not
+HealthySelectedCereals<- rbind(
+  CerealswithoutMV[1, c(1,4:8,9,10,12,16)],
+  CerealswithoutMV[2, c(1,4:8,9,10,12,16)],
+  CerealswithoutMV[3, c(1,4:8,9,10,12,16)],
+  CerealswithoutMV[4, c(1,4:8,9,10,12,16)],
+  CerealswithoutMV[6, c(1,4:8,9,10,12,16)],
+  CerealswithoutMV[7, c(1,4:8,9,10,12,16)],
+  CerealswithoutMV[8, c(1,4:8,9,10,12,16)]
+)
+## Results 
+# "100% Bran", "All-Bran" ,"All-Bran_with_Extra_Fiber","Bran-Chex" are really highly rated. There is no doubt why they are in this healthy cluster. Other three cereals do not have so high ratings but by ingredients they should be highly recommended compared to other non-selected cereals in the whole data.These cluster 1 cereals should be highly recommended to be served in the daily cafeterias of the elementary public schools.
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
